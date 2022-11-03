@@ -50,6 +50,29 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 )
 
+// Options defines the program configurable options that may be passed on the command line.
+type Options struct {
+	metricsAddr string
+	webhookPort int
+}
+
+// DefaultOptions returns the default values for the program options.
+func DefaultOptions() Options {
+	return Options{
+		metricsAddr: ":8080",
+		webhookPort: 9443,
+	}
+}
+
+// GetOptions parses the program flags and returns them as Options.
+func GetOptions() Options {
+	opts := DefaultOptions()
+	flag.StringVar(&opts.metricsAddr, "metrics-addr", opts.metricsAddr, "The address the metric endpoint binds to.")
+	flag.IntVar(&opts.webhookPort, "webhook-port", opts.webhookPort, "The port that the webhook server binds to.")
+	flag.Parse()
+	return opts
+}
+
 func init() {
 	// Allow unknown fields in Istio API client for backwards compatibility if cluster has existing vs with deprecated fields.
 	istio_networking.VirtualServiceUnmarshaler.AllowUnknownFields = true
@@ -57,9 +80,6 @@ func init() {
 }
 
 func main() {
-	var metricsAddr string
-	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
-	flag.Parse()
 	logf.SetLogger(zap.New())
 	log := logf.Log.WithName("entrypoint")
 
@@ -73,7 +93,8 @@ func main() {
 
 	// Create a new Cmd to provide shared dependencies and start components
 	log.Info("Setting up manager")
-	mgr, err := manager.New(cfg, manager.Options{MetricsBindAddress: metricsAddr, Port: 9443})
+	options := GetOptions()
+	mgr, err := manager.New(cfg, manager.Options{MetricsBindAddress: options.metricsAddr, Port: options.webhookPort})
 	if err != nil {
 		log.Error(err, "unable to set up overall controller manager")
 		os.Exit(1)
